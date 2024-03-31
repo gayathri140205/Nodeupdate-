@@ -1,15 +1,17 @@
 const express = require('express');
 const bodyParser = require('body-parser');
-const nodemailer = require('nodemailer');
-const crypto = require('crypto');
-const mongoose = require('mongoose'); 
+const jwt = require('jsonwebtoken');
+const mongoose = require('mongoose');
 require('dotenv').config();
 
 const app = express();
-const port = process.env.PORT || 3000; 
+const port = process.env.PORT || 3000;
+
+
+
 
 // Connect to MongoDB using mongoose
-mongoose.connect(process.env.MONGODB_ATLAS_URI)
+mongoose.connect(process.env.MONGODB_ATLAS_URI,)
   .then(() => console.log('MongoDB connected'))
   .catch(err => console.error('MongoDB connection error:', err));
 
@@ -27,7 +29,62 @@ const User = mongoose.model('User', userSchema);
 // Middleware to parse JSON bodies
 app.use(bodyParser.json());
 
-// Endpoint for password reset request
+// Middleware for route protection - verify token
+const verifyToken = (req, res, next) => {
+  const token = req.headers['authorization'];
+  if (!token) return res.status(401).json({ error: 'Access denied. No token provided.' });
+
+  jwt.verify(token, process.env.JWT_SECRET, (err, decoded) => {
+    if (err) return res.status(401).json({ error: 'Invalid token.' });
+    req.user = decoded;
+    next();
+  });
+};
+
+// Signup endpoint
+app.post('/signup', async (req, res) => {
+  const { email, password } = req.body;
+
+  try {
+    // Check if the user already exists
+    const existingUser = await User.findOne({ email });
+    if (existingUser) {
+      return res.status(400).json({ error: 'User already exists.' });
+    }
+
+    // Create a new user
+    const newUser = new User({ email, password });
+    await newUser.save();
+
+    res.status(200).json({ message: 'Signup successful.' });
+  } catch (error) {
+    console.error('Error signing up:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// Login endpoint
+app.post('/login', async (req, res) => {
+  const { email, password } = req.body;
+
+  try {
+    // Find the user by email
+    const user = await User.findOne({ email });
+
+    if (!user || user.password !== password) {
+      return res.status(401).json({ error: 'Invalid email or password.' });
+    }
+
+    // Create and return JWT token
+    const token = jwt.sign({ email: user.email, userId: user._id }, process.env.JWT_SECRET, { expiresIn: '1h' });
+    res.status(200).json({ token });
+  } catch (error) {
+    console.error('Error logging in:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// Password reset request endpoint
 app.post('/reset-password/request', async (req, res) => {
   const { email } = req.body;
 
@@ -57,7 +114,7 @@ app.post('/reset-password/request', async (req, res) => {
   }
 });
 
-// Endpoint for password reset confirmation
+// Password reset confirmation endpoint
 app.post('/reset-password/confirm', async (req, res) => {
   const { email, token, newPassword } = req.body;
 
@@ -110,6 +167,12 @@ function sendResetEmail(email, token) {
     }
   });
 }
+
+
+// Protected route example
+app.get('/protected', verifyToken, (req, res) => {
+  res.status(200).json({ message: 'This is a protected route.', user: req.user });
+});
 
 // Start the server
 app.listen(port, () => {
