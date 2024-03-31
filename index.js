@@ -7,7 +7,8 @@ require('dotenv').config();
 const app = express();
 const port = process.env.PORT || 3000;
 
-
+// Configure CORS middleware to allow requests from all origins
+app.use(cors());
 
 
 // Connect to MongoDB using mongoose
