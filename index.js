@@ -119,7 +119,7 @@ app.post('/reset-password/request', async (req, res) => {
     res.status(200).json({ message: 'Password reset email sent successfully' });
   } catch (error) {
     console.error('Error resetting password:', error);
-    res.status(500).json({ error: 'Internal server error' });
+    res.status(500).json({ error: 'Internal server ' });
   }
 });
 
